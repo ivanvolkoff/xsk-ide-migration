@@ -11,6 +11,7 @@
  */
 var migrationLaunchView = angular.module("migration-launch", ["angularFileUpload"]);
 
+
 migrationLaunchView.factory("$messageHub", [
     function () {
         var messageHub = new FramesMessageHub();
@@ -44,6 +45,53 @@ migrationLaunchView.factory("$messageHub", [
     },
 ]);
 
+const FLOW_TYPE_ZIP = 1;
+const FLOW_TYPE_LIVE = 2;
+
+migrationLaunchView.factory("stepFactory", ['migrationViewState', function (migrationViewState) {
+    const steps = [
+        {
+            id: 1,
+            name: "SAP BTP Neo Credentials",
+            topicId: "migration.neo-credentials"
+        },
+        {
+            id: 2,
+            name: "SAP HANA Credentials",
+            topicId: "migration.hana-credentials",
+            onLoad: "migration.get-databases"
+        },
+        { id: 3, name: "Delivery Units", topicId: "migration.delivery-unit", onLoad: "migration.delivery-unit" },
+        { id: 4, name: "Changes", topicId: "migration.changes", onLoad: "migration.changes" },
+        { id: 5, name: "Migration", topicId: "migration.start-migration", onLoad: "migration.start-migration" },
+    ];
+
+    const zipsteps = [
+        { id: 1, name: "Upload ZIP file", topicId: "migration.upload-zip-migration" },
+        { id: 2, name: "Migration", topicId: "migration.start-zip-migration" },
+    ];
+
+    function getStepByIndex(index) {
+        const activeFlow = migrationViewState.getActiveFlow();
+        return activeFlow === FLOW_TYPE_LIVE ? steps[index - 1] : zipsteps[index - 1]; //TODO: refactor - get by id instead index in array
+    }
+
+    function getStepByIndexForFlow(index, flow) {
+        return flow === FLOW_TYPE_LIVE ? steps[index - 1] : zipsteps[index - 1];
+    }
+
+    function getSteps() {
+        const activeFlow = migrationViewState.getActiveFlow();
+        return activeFlow === FLOW_TYPE_LIVE ? steps : zipsteps;
+    }
+
+    return {
+        getStepByIndex,
+        getSteps,
+        getStepByIndexForFlow
+    }
+}])
+
 migrationLaunchView.factory("migrationDataState", migrationDataState);
 
 function migrationDataState() {
@@ -67,155 +115,284 @@ function migrationDataState() {
     return state;
 }
 
+migrationLaunchView.factory("migrationViewState", ["$messageHub", function ($messageHub) {
+    let isDataLoading = false;
+    let currentStepIndex = 0;
+    let nextDisabled = true;
+    let finishVisible = false;
+    let nextVisible = true;
+
+    let activeFlow = null;
+
+    let defaultViewSettings = {
+        fullWidthEnabled: false,
+        bottomNavHidden: false,
+        previousDisabled: false,
+        nextDisabled: true,
+        previousVisible: true,
+        nextVisible: true,
+        finishVisible: true,
+        finishDisabled: true,
+    }
+
+    function setActiveFlow(type) {
+        activeFlow = type;
+    }
+
+    function getActiveFlow() {
+        return activeFlow;
+    }
+
+    function getDefaultState() {
+        return defaultViewSettings;
+    }
+
+    function isFullWidthEnabled() {
+        return defaultViewSettings.fullWidthEnabled;
+    }
+
+    function isBottomNavHidden() {
+        return currentStepIndex === 0 || isDataLoading || currentStepIndex === 5 || currentStepIndex === 4;
+    }
+
+    function isPreviousDisabled() {
+        return isDataLoading;
+    }
+
+    function isPreviousVisible() {
+        return !isDataLoading && currentStepIndex > 0;
+    }
+
+    function isNextDisabled() {
+        return nextDisabled;
+    }
+
+    function isNextVisible() {
+        return nextVisible;
+    }
+
+    function setNextVisible(visible) {
+        nextVisible = visible;
+    }
+
+    function isFinishDisabled() {
+        return !isDataLoading;
+    }
+
+    function isFinishVisible() {
+        return finishVisible;
+    }
+
+    function setFinishVisible(visible) {
+        finishVisible = visible;
+    }
+
+    function isOnStatisticsPage() {
+        return currentStepIndex === 0;
+    }
+
+    function setDataLoading(loading) {
+        isDataLoading = loading;
+    }
+
+    function goForward() {
+        currentStepIndex++;
+    }
+
+    function goBack() {
+        currentStepIndex--;
+    }
+
+    function goToStep(index, flowType, step, data) {
+        isPreviousVisible = false;
+        currentStepIndex = index;
+        activeFlow = flowType;
+        $messageHub.message(step.onLoad, data);
+    }
+
+    function getCurrentStepIndex() {
+        return currentStepIndex;
+    }
+
+    function setNextDisabled(disabled) {
+        nextDisabled = disabled;
+    }
+    function getIsDataLoading() {
+        return isDataLoading;
+    }
+
+    function getVisibleStep() {
+        if (activeFlow === FLOW_TYPE_LIVE) {
+            switch (getCurrentStepIndex()) {
+                case 1:
+                    return 'neo-credentials';
+
+                case 2:
+                    return 'hana-credentials';
+
+                case 3:
+                    return 'delivery-unit';
+
+                case 4:
+                    return 'changes';
+
+                case 5:
+                    return 'start-migration';
+
+                default:
+                    throw ("Step does not exist in flow");
+
+            }
+        }
+
+        if (activeFlow === FLOW_TYPE_ZIP) {
+            switch (getCurrentStepIndex()) {
+                case 1:
+                    return 'zip-migration';
+
+                case 2:
+                    return 'start-migration';
+
+                default:
+                    throw ("Step does not exist in flow");
+            }
+        }
+    }
+
+    return {
+        getDefaultState,
+        isFullWidthEnabled,
+        isBottomNavHidden,
+        isPreviousDisabled,
+        isPreviousVisible,
+        isNextDisabled,
+        isNextVisible,
+        isFinishDisabled,
+        isFinishVisible,
+        isOnStatisticsPage,
+        goForward,
+        goBack,
+        getCurrentStepIndex,
+        setNextDisabled,
+        setDataLoading,
+        getIsDataLoading,
+        setActiveFlow,
+        getActiveFlow,
+        setFinishVisible,
+        setNextVisible,
+        getVisibleStep,
+        goToStep
+    };
+}]);
+
 migrationLaunchView.controller("MigrationLaunchViewController", [
     "$scope",
     "$messageHub",
-    function ($scope, $messageHub) {
-        $scope.steps = [
-            {
-                id: 1,
-                name: "SAP BTP Neo Credentials",
-                topicId: "migration.neo-credentials",
-            },
-            {
-                id: 2,
-                name: "SAP HANA Credentials",
-                topicId: "migration.hana-credentials",
-            },
-            { id: 3, name: "Delivery Units", topicId: "migration.delivery-unit" },
-            { id: 4, name: "Changes", topicId: "migration.changes" },
-            { id: 5, name: "Migration", topicId: "migration.start-migration" },
-        ];
-        $scope.zipsteps = [
-            { id: 1, name: "Upload ZIP file", topicId: "migration.upload-zip-migration" },
-            { id: 2, name: "Migration", topicId: "migration.start-zip-migration" },
-        ];
+    "migrationViewState",
+    "stepFactory",
+    function ($scope, $messageHub, migrationViewState, stepFactory) {
 
-        $scope.fullWidthEnabled = false;
-        $scope.onStatisticsPage = true;
-        $scope.migrationFromZip = false;
-        $scope.bottomNavHidden = false;
-        $scope.previousDisabled = false;
-        $scope.nextDisabled = true;
-        $scope.previousVisible = false;
-        $scope.nextVisible = true;
-        $scope.finishVisible = false;
-        $scope.finishDisabled = true;
-        $scope.currentStep = $scope.steps[0];
-        $scope.currentZipStep = $scope.zipsteps[0];
+        $scope.defaultViewSettings = migrationViewState.getDefaultState();
 
-        $scope.showMigrationScreen = function () {
-            $scope.onStatisticsPage = false;
-        };
+        $scope.getSteps = function () {
+            return stepFactory.getSteps();
+        }
+
+        $scope.isVisible = function (partial) {
+            return migrationViewState.getVisibleStep() === partial;
+        }
+
+        $scope.fullWidthEnabled = function () {
+            return migrationViewState.isFullWidthEnabled();
+        }
+        $scope.onStatisticsPage = function () {
+            return migrationViewState.isOnStatisticsPage();
+        }
+
+        $scope.isMigrationFromZip = function () {
+            return migrationViewState.getActiveFlow() === FLOW_TYPE_ZIP;
+        }
+
+        $scope.bottomNavHidden = function () {
+            return migrationViewState.isBottomNavHidden();
+        }
+        $scope.previousDisabled = function () {
+            return migrationViewState.isPreviousDisabled();
+        }
+        $scope.nextDisabled = function () {
+            return migrationViewState.isNextDisabled();
+        }
+        $scope.previousVisible = function () {
+            return migrationViewState.isPreviousVisible();
+        }
+        $scope.nextVisible = function () {
+            return migrationViewState.isNextVisible();
+        }
+        $scope.finishVisible = function () {
+            return migrationViewState.isFinishVisible();
+        }
+        $scope.finishDisabled = function () {
+            return migrationViewState.isFinishDisabled();
+        }
+
+        $scope.currentStepIndex = function () {
+            migrationViewState.getCurrentStepIndex();
+        }
+
+        $scope.goForward = function () {
+            migrationViewState.goForward();
+            //this below should be in migrationViewState factory
+            const currentStep = stepFactory.getStepByIndex(migrationViewState.getCurrentStepIndex());
+            if (currentStep && currentStep["onLoad"]) {
+                $messageHub.message(currentStep["onLoad"]);
+            }
+        }
+
+        $scope.goBack = function () {
+            migrationViewState.goBack();
+        }
+
+        $scope.selectLiveMigration = function () {
+            migrationViewState.setFinishVisible(false);
+            $scope.startFlow(FLOW_TYPE_LIVE);
+        }
+
+        $scope.startFlow = function (flowType) {
+            migrationViewState.setActiveFlow(flowType)
+            migrationViewState.goForward();
+        }
 
         $scope.selectZipMigration = function () {
-            $scope.onStatisticsPage = false;
-            $scope.migrationFromZip = true;
-            $scope.setNextVisible(false);
-            $scope.setFinishVisible(true);
-            $scope.setBottomNavEnabled(false);
-            $scope.currentStep = $scope.zipsteps[0];
-        };
-
-        $scope.setFinishVisible = function (visible) {
-            $scope.finishVisible = visible;
-        };
-
-        $scope.setFinishEnabled = function (enabled) {
-            $scope.finishDisabled = !enabled;
-        };
-
-        $scope.setFullWidthEnabled = function (enabled) {
-            $scope.fullWidthEnabled = enabled;
-        };
-
-        $scope.setNextVisible = function (visible) {
-            $scope.nextVisible = visible;
+            migrationViewState.setFinishVisible(false);
+            migrationViewState.setNextVisible(false);
+            $scope.startFlow(FLOW_TYPE_ZIP);
         };
 
         $scope.setNextEnabled = function (enabled) {
-            $scope.nextDisabled = !enabled;
-        };
-
-        $scope.setPreviousVisible = function (visible) {
-            $scope.previousVisible = visible;
-        };
-
-        $scope.setPreviousEnabled = function (enabled) {
-            $scope.previousDisabled = !enabled;
-        };
-
-        $scope.setBottomNavEnabled = function (enabled) {
-            $scope.bottomNavHidden = !enabled;
-        };
-
-        $scope.nextClicked = function () {
-            $messageHub.message($scope.currentStep.topicId, { isVisible: false });
-            for (const step of $scope.steps) {
-                if (step.id > $scope.currentStep.id) {
-                    $scope.currentStep = step;
-                    break;
-                }
-            }
-            $messageHub.message($scope.currentStep.topicId, { isVisible: true });
-        };
-
-        $scope.backToChoice = function () {
-            $scope.setPreviousVisible(false);
-            $scope.setPreviousEnabled(false);
-            $scope.onStatisticsPage = true;
-            $scope.migrationFromZip = false;
-            $scope.bottomNavHidden = false;
-            $scope.previousDisabled = false;
-            $scope.nextDisabled = true;
-            $scope.previousVisible = false;
-            $scope.nextVisible = true;
-            $scope.finishVisible = false;
-            $scope.finishDisabled = true;
-            $scope.currentStep = $scope.steps[0];
-            $scope.currentZipStep = $scope.zipsteps[0];
+            migrationViewState.setNextDisabled(!enabled);
         };
 
         $scope.previousClicked = function () {
-            $messageHub.message($scope.currentStep.topicId, { isVisible: false });
-            $scope.revertStep();
-            $messageHub.message($scope.currentStep.topicId, { isVisible: true });
+            migrationViewState.goBack();
         };
 
-        $scope.revertStep = function () {
-            $scope.setFinishEnabled(false);
-            for (let i = $scope.steps.length - 1; i >= 0; i--) {
-                if ($scope.steps[i].id < $scope.currentStep.id) {
-                    $scope.currentStep = $scope.steps[i];
-                    break;
-                }
+        $scope.getDiffClicked = function (status, processInstanceId) {
+            if (status === "POPULATING_PROJECTS_EXECUTED") {
+                const step = stepFactory.getStepByIndexForFlow(4, FLOW_TYPE_LIVE);
+                migrationViewState.goToStep(4, FLOW_TYPE_LIVE, step, { processInstanceId });
             }
-        };
-
-        $scope.getDiffClicked = function (processInstanceId) {
-            $messageHub.message("migration.neo-credentials", { isVisible: false });
-            // $messageHub.message("migration.get-diff", { processInstanceId });
-            $messageHub.message("migration.changes", { isVisible: true, diffOnly: true, processInstanceId });
         }
 
-        $scope.migrateClicked = function () {
-            $messageHub.message($scope.currentStep.topicId, { isVisible: false });
-            $scope.currentStep = $scope.steps[$scope.steps.length - 1];
-            $messageHub.message($scope.currentStep.topicId, { isVisible: true });
-            $scope.bottomNavHidden = true;
-        };
 
-        $scope.isStepActive = function (stepId) {
-            if (stepId == $scope.currentStep.id) return "active";
-            else if (stepId < $scope.currentStep.id) return "done";
-            else return "inactive";
-        };
-
-        $scope.isZipStepActive = function (stepId) {
-            if (stepId == $scope.currentZipStep.id) return "active";
-            else if (stepId < $scope.currentZipStep.id) return "done";
-            else return "inactive";
-        };
+        $scope.getStepStatus = function (stepId) {
+            if (stepId === migrationViewState.getCurrentStepIndex()) {
+                return "active";
+            }
+            if (stepId < migrationViewState.getCurrentStepIndex()) {
+                return "done";
+            }
+            return "inactive";
+        }
 
         $messageHub.on("migration.launch", function (msg) { }.bind(this));
     },

@@ -11,12 +11,10 @@
  */
 migrationLaunchView.controller("NeoCredentialsViewController", [
     "$scope",
-    "$messageHub",
     "migrationDataState",
-    function ($scope, $messageHub, migrationDataState) {
+    function ($scope, migrationDataState) {
         $scope.migrationDataState = migrationDataState;
         $scope.passwordHintMessage = "If you have enabled 2FA for your account, append your 2FA code after the password";
-        $scope.isVisible = true;
         $scope.passwordVisible = false;
         $scope.regionDropdownInitText = "---Please select---";
         $scope.regionDropdownText = $scope.regionDropdownInitText;
@@ -60,8 +58,10 @@ migrationLaunchView.controller("NeoCredentialsViewController", [
                 migrationDataState.neoUsername &&
                 migrationDataState.neoPassword
             ) {
+                console.log("T")
                 $scope.$parent.setNextEnabled(true);
             } else {
+                console.log("F")
                 $scope.$parent.setNextEnabled(false);
             }
         };
@@ -106,22 +106,5 @@ migrationLaunchView.controller("NeoCredentialsViewController", [
                 $scope.regionList = $scope.regions;
             }
         };
-
-        $messageHub.on(
-            "migration.neo-credentials",
-            function (msg) {
-                if ("isVisible" in msg.data) {
-                    $scope.$apply(function () {
-                        $scope.isVisible = msg.data.isVisible;
-                        if (msg.data.isVisible) {
-                            $scope.userInput();
-                            $scope.$parent.setPreviousVisible(false);
-                            $scope.$parent.setPreviousEnabled(true);
-                            $scope.$parent.setNextVisible(true);
-                        }
-                    });
-                }
-            }.bind(this)
-        );
     },
 ]);

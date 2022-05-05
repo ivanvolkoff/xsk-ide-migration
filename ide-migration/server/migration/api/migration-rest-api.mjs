@@ -94,6 +94,7 @@ function continueProcess(ctx, req, res) {
     const tasksJson = org.eclipse.dirigible.api.v3.bpm.BpmFacade.getTasks();
     const tasks = JSON.parse(tasksJson);
     for (const task of tasks) {
+        console.log("NOW GETTING " + JSON.stringify(userDataJson))
         if (task.processInstanceId === userDataJson.processInstanceId.toString()) {
             tasksService.completeTask(task.id, {
                 userData: JSON.stringify(userDataJson),

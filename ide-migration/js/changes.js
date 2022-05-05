@@ -17,15 +17,19 @@ migrationLaunchView.controller("ChangesViewController", [
     "$messageHub",
     "$timeout",
     "migrationDataState",
-    function ($scope, $http, $messageHub, $timeout, migrationDataState) {
+    "migrationViewState",
+    function ($scope, $http, $messageHub, $timeout, migrationDataState, migrationViewState) {
         $scope.migrationDataState = migrationDataState;
-        $scope.isVisible = false;
-        $scope.dataLoaded = false;
+        $scope.dataLoaded = function () {
+            return !migrationViewState.getIsDataLoading();
+        }
         let viewWidth = document.querySelectorAll(".changes-body")[0].clientWidth | 100;
         $scope.isDiffViewSplit = viewWidth > 1100 ? true : false;
         $scope.data = [];
+        $scope.processInstanceId = null;
 
         function getDiffData(processInstanceId) {
+
             $http
                 .post(
                     "/services/v4/js/ide-migration/server/migration/api/migration-rest-api.mjs/get-process",
@@ -46,10 +50,12 @@ migrationLaunchView.controller("ChangesViewController", [
                         // Set data variable
                         $scope.data = diffViewData;
                         // Set full width for better experience
-                        $scope.$parent.setFullWidthEnabled(true);
+                        // $scope.$parent.setFullWidthEnabled(true);
                         // Show data
-                        $scope.dataLoaded = true;
-                        $scope.$apply();
+                        migrationViewState.setDataLoading(false);
+                        // $scope.dataLoaded = true;
+                        // $scope.isVisible = true;
+                        // $scope.$apply();
                     },
                     function (response) {
                         if (response.data) {
@@ -86,7 +92,7 @@ migrationLaunchView.controller("ChangesViewController", [
                 connectionId: migrationDataState.connectionId,
                 workspace: migrationDataState.selectedWorkspace,
                 du: migrationDataState.selectedDeliveryUnits,
-                processInstanceId: migrationDataState.processInstanceId, //refactor
+                processInstanceId: migrationDataState.processInstanceId ?? $scope.processInstanceId
             };
 
             $http
@@ -116,9 +122,10 @@ migrationLaunchView.controller("ChangesViewController", [
                                     // Set data variable
                                     $scope.data = diffViewData;
                                     // Set full width for better experience
-                                    $scope.$parent.setFullWidthEnabled(true);
+                                    //$scope.$parent.setFullWidthEnabled(true);
                                     // Show data
-                                    $scope.dataLoaded = true;
+                                    //$scope.dataLoaded = true;
+                                    migrationViewState.setDataLoading(false);
                                     $scope.$apply();
                                 },
                                 function (response) {
@@ -157,13 +164,8 @@ migrationLaunchView.controller("ChangesViewController", [
         };
 
         $scope.continueMigration = function () {
-            // TODO
-            for (let i = 0; i < $scope.data.length; i++) {
-                if (!$scope.data[i].excluded) {
-                    console.log("Migrating file:", $scope.data[i].file);
-                }
-            }
-            $scope.$parent.migrateClicked();
+            // continueMigration();
+            $scope.$parent.goForward();
         };
 
         $scope.splitDiffView = function () {
@@ -187,33 +189,21 @@ migrationLaunchView.controller("ChangesViewController", [
         $messageHub.on(
             "migration.changes",
             function (msg) {
-                if ("isVisible" in msg.data) {
-                    $scope.$apply(function () {
-                        $scope.dataLoaded = false;
-                        $scope.isVisible = msg.data.isVisible;
-                        if (msg.data.isVisible) {
-                            $scope.$parent.setBottomNavEnabled(false);
-                        } else {
-                            $scope.data = [];
-                            editors = [];
-                        }
-                    });
-
-                    if (msg.data.isVisible && msg.data.diffOnly) {
+                console.log(msg)
+                $scope.$apply(function () {
+                    migrationViewState.setDataLoading(true);
+                    if (msg.data && msg.data.processInstanceId) {
+                        migrationDataState.processInstanceId = msg.data.processInstanceId;
                         getDiffData(msg.data.processInstanceId);
-                    } else if (msg.data.isVisible) {
+                    } else {
                         continueMigration();
                     }
+
                 }
+                );
             }.bind(this)
         );
 
-        $messageHub.on(
-            "migration.get-diff",
-            function (msg) {
-                getDiffData(msg.data.processInstanceId);
-            }.bind(this)
-        );
     },
 ]);
 

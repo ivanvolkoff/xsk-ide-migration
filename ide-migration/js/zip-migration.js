@@ -5,12 +5,18 @@ migrationLaunchView.controller("ImportZippedDU", [
     "$http",
     "FileUploader",
     "$messageHub",
-    function ($scope, $http, FileUploader, $messageHub) {
+    "migrationViewState",
+    function ($scope, $http, FileUploader, $messageHub, migrationViewState) {
         $scope.TRANSPORT_PROJECT_URL = "/services/v4/transport/project";
         $scope.WORKSPACES_URL = "/services/v4/ide/workspaces";
         $scope.TEMP_MIGRATION_ROOT = "temp/migrations/";
         $scope.zipPaths = [];
         $scope.migrationFinished = false;
+        $scope.stepIndex = 1;
+
+        $scope.isVisible = function () {
+            return migrationViewState.getCurrentStepIndex() === $scope.stepIndex && migrationViewState.getActiveFlow() === FLOW_TYPE_ZIP;
+        }
 
         let url = $scope.WORKSPACES_URL;
         let noProcessErrorTitle = "Error starting migration process";
@@ -48,7 +54,7 @@ migrationLaunchView.controller("ImportZippedDU", [
         $scope.uploader.onWhenAddingFileFailed = function (item /*{File|FileLikeObject}*/, filter, options) {
             //        console.info('onWhenAddingFileFailed', item, filter, options);
         };
-        $scope.uploader.onAfterAddingFile = function (fileItem) {};
+        $scope.uploader.onAfterAddingFile = function (fileItem) { };
         $scope.uploader.onAfterAddingAll = function (addedFileItems) {
             //        console.info('onAfterAddingAll', addedFileItems);
         };
@@ -91,9 +97,11 @@ migrationLaunchView.controller("ImportZippedDU", [
                 workspace: ws,
                 zipPath: zipPaths,
             };
-            $messageHub.message($scope.currentZipStep.topicId, { isVisible: false });
-            $scope.currentZipStep = $scope.zipsteps[$scope.zipsteps.length - 1];
-            $messageHub.message($scope.currentZipStep.topicId, { isVisible: true });
+
+            // $messageHub.message($scope.currentZipStep.topicId, { isVisible: false });
+            // $scope.currentZipStep = $scope.zipsteps[$scope.zipsteps.length - 1];
+            // $messageHub.message($scope.currentZipStep.topicId, { isVisible: true });
+            migrationViewState.goForward();
 
             $http
                 .post("/services/v4/js/ide-migration/server/migration/api/migration-rest-api.mjs/start-process-from-zip", body, {
@@ -110,26 +118,30 @@ migrationLaunchView.controller("ImportZippedDU", [
                             });
                         } else {
                             $scope.migrationFinished = false;
+
                             $messageHub.announceAlertError(noProcessErrorTitle, noProcessErrorDescription);
-                            $messageHub.message($scope.currentZipStep.topicId, { isVisible: false });
-                            $scope.currentZipStep = $scope.zipsteps[0];
-                            $messageHub.message($scope.currentZipStep.topicId, { isVisible: true });
+                            // $messageHub.message($scope.currentZipStep.topicId, { isVisible: false });
+                            // $scope.currentZipStep = $scope.zipsteps[0];
+                            // $messageHub.message($scope.currentZipStep.topicId, { isVisible: true });
+                            migrationViewState.goBack();
+
                             $scope.removeAll($scope.uploader);
                         }
                     },
                     function (response) {
                         $scope.migrationFinished = false;
                         $messageHub.announceAlertError("Migration failed", response.error.message);
-                        $messageHub.message($scope.currentZipStep.topicId, { isVisible: false });
-                        $scope.currentZipStep = $scope.zipsteps[0];
-                        $messageHub.message($scope.currentZipStep.topicId, { isVisible: true });
+                        // $messageHub.message($scope.currentZipStep.topicId, { isVisible: false });
+                        // $scope.currentZipStep = $scope.zipsteps[0];
+                        // $messageHub.message($scope.currentZipStep.topicId, { isVisible: true });
+                        migrationViewState.goBack();
                         $scope.removeAll($scope.uploader);
                     }
                 );
         };
 
         $scope.uploader.onCompleteAll = function () {
-            $scope.setFinishEnabled(true);
+            // $scope.setFinishEnabled(true);
             $scope.startZipMigration($scope.selectedWs, $scope.uploader);
         };
 
