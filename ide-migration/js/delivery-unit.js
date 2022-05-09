@@ -192,7 +192,7 @@ migrationLaunchView.controller("DeliveryUnitViewController", [
             $scope.duDropdownText = $scope.duSelectedUItext.length ? $scope.duSelectedUItext.join(", ") : $scope.duDropdownInitText;
             $scope.selectAllText =
                 migrationDataState.selectedDeliveryUnits.length == $scope.deliveryUnitList.length ? "Unselect all" : "Select all";
-            migrationViewState.setNextEnabled(true);
+            migrationViewState.setNextDisabled(false);
         };
 
         $messageHub.on(

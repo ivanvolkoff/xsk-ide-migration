@@ -24,7 +24,7 @@
                         <td>
                             <button type="button" class="btn btn-secondary btn-big pull-right"
                                 ng-click="getDiffClicked(migrationEntry.STATUS, migrationEntry.PROCESS_INSTANCE_ID)"
-                                ng-show="true">
+                                ng-disabled="migrationEntry.STATUS !== 'POPULATING_PROJECTS_EXECUTED'">
                                 Continue
                             </button>
                         </td>

@@ -9,7 +9,7 @@
  * SPDX-FileCopyrightText: 2022 SAP SE or an SAP affiliate company and XSK contributors
  * SPDX-License-Identifier: Apache-2.0
  */
-require.config({ paths: { vs: "/services/v4/web/ide-monaco/monaco-editor/min/vs" } });
+require.config({ paths: { vs: "/webjars/monaco-editor/0.33.0/min/vs" } });
 let editors = [];
 migrationLaunchView.controller("ChangesViewController", [
     "$scope",
@@ -50,12 +50,9 @@ migrationLaunchView.controller("ChangesViewController", [
                         // Set data variable
                         $scope.data = diffViewData;
                         // Set full width for better experience
-                        // $scope.$parent.setFullWidthEnabled(true);
+                        migrationViewState.setFullWidthEnabled(true);
                         // Show data
                         migrationViewState.setDataLoading(false);
-                        // $scope.dataLoaded = true;
-                        // $scope.isVisible = true;
-                        // $scope.$apply();
                     },
                     function (response) {
                         if (response.data) {
@@ -189,7 +186,6 @@ migrationLaunchView.controller("ChangesViewController", [
         $messageHub.on(
             "migration.changes",
             function (msg) {
-                console.log(msg)
                 $scope.$apply(function () {
                     migrationViewState.setDataLoading(true);
                     if (msg.data && msg.data.processInstanceId) {

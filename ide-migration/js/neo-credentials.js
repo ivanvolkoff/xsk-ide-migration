@@ -58,10 +58,8 @@ migrationLaunchView.controller("NeoCredentialsViewController", [
                 migrationDataState.neoUsername &&
                 migrationDataState.neoPassword
             ) {
-                console.log("T")
                 $scope.$parent.setNextEnabled(true);
             } else {
-                console.log("F")
                 $scope.$parent.setNextEnabled(false);
             }
         };
